@@ -1,0 +1,43 @@
+# Shoot Enemies Game
+
+A fun arcade-style game where you shoot and destroy enemies.
+
+## Features
+
+- Action-packed gameplay
+- Multiple enemy types
+- Score tracking
+- Increasing difficulty levels
+
+## Controls
+
+- **Arrow Keys** - Move
+- **Spacebar** - Shoot
+- **ESC** - Pause/Menu  (NOT IMPLEMENTED)
+
+## Gameplay
+
+Destroy all enemies to advance to the next level. Each level introduces faster and more numerous enemies. Collect power-ups to enhance your weapons. (WARNING:  Levels, power-ups and different weapons are NOT yet implemented.)
+
+
+## Installation
+
+### Local development, testing and fun
+1. Clone the repository
+2. Install pygame. Use `pip install pygame` or `python3 -m pip install pygame`    
+3. Run the game: `python main.py`
+
+### Upload to Google Cloud so anyone can play on a brower
+1. Install pygbag:  `pip install pygbag --user --upgrade` or google it
+1. Test in local browser: `pygbag <dir_containing_the_game>`.  If successful, it will tell you to put http://localhost:8000/ in your browser.  Try that and the game should run inside your browser.
+1. The previoius step creates a new build/web folder.  That folder contains the HTML version of the game. In theory that folder
+   can be copied to any HTML server for serving.
+1. One convenient option is Google Cloud Storage:
+ 
+   1. Setup a Google account if you don't already have one. Billing may or may not need to be enabled. The game is so tiny that it won't really generate charges. It will be pennies even if it would.
+   1. Go to https://console.cloud.google.com/ on your browser.
+   1. Click on the three bar icon on the top left of the page (left of the Google Cloud log), that expands the menu. Select Cloud Storage.
+   1. Click on Create a Bucket. Give it a name, say "python-shoot-game-demo". Continue other settings as you see fit (Those doesn't matter for now. We could explain those in details if anyone is interested). Click on the Create button.
+   1. One the new page showing the new bucket, click on the Permission tab. Ensure that Prevent Public Access is disabled. Ensure that we have Unofrom access control.  Click on Grant Access, a new tab pop up on the right.  Put `allUsers` in the new principals field. Role should be `Storage Object Viewer`.
+   1. Upload the content of the build/web to the new bucket. Click on Upload (Upload files), select all files under build/web/.
+   1. Now, the game should play accessible from any computer: https://storage.googleapis.com/python-shoot-game-demo/index.html
