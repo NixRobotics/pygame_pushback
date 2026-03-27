@@ -33,40 +33,41 @@ clock = pygame.time.Clock()
 
 class Poop(pygame.sprite.Sprite):
     ''' Represents the poop projectiles fired by the player.'''
-    def __init__(self, x, y, cam_x, cam_y, angle):
+    def __init__(self, x, y, angle):
         super().__init__()
         self.image = pygame.image.load('assets/octo_blue.png').convert_alpha()
         self.image = pygame.transform.scale(self.image, (POOP_SIZE, POOP_SIZE))
         self.x = x
         self.y = y
-        # TODO: Clean-up camera code on objet creation
-        self.rect = self.image.get_rect(
-            center = (
-                (self.x - cam_x) // FIELD_TO_SCREEN_SCALE + SCREEN_WIDTH // 2 - POOP_SIZE // 2,
-                -(self.y - cam_y) // FIELD_TO_SCREEN_SCALE + SCREEN_HEIGHT // 2 - POOP_SIZE // 2)
-            )
         self.angle = angle
 
-    def update(self, cam_x, cam_y):
+    def update(self):
         '''This method is called by the event loop below, driven by the loop in main().
         This is called ever frame. Read the pyGame documentation for more details on a frame.
         TL;DR: A frame is one iteration of the game loop, which is typically 1/60th of a second.
         Our job here to update the poop's position, orientation, color, live-or-death
         etc properties as needed.
         '''
-        if self.rect is None: return
-
         self.x += 8 * sin(radians(self.angle)) # Move sideways
         self.y += 8 * cos(radians(self.angle)) # Move upward
-
-        # Note: Balls do not change aspect, so this works
-        self.rect.x = (self.x - cam_x) // FIELD_TO_SCREEN_SCALE + SCREEN_WIDTH // 2 - POOP_SIZE // 2  # Move sideways
-        self.rect.y = -(self.y - cam_y) // FIELD_TO_SCREEN_SCALE + SCREEN_HEIGHT // 2 - POOP_SIZE // 2 # Move upward
 
         if self.x < 0: self.kill() # Remove if off-screen
         if self.x > FIELD_WIDTH: self.kill() # Remove if off-screen
         if self.y < 0: self.kill() # Remove if off-screen
         if self.y > FIELD_HEIGHT: self.kill() # Remove if off-screen
+
+    def view(self, cam_x, cam_y):
+        if self.rect is None:
+            if self.image is None: return
+            self.rect = self.image.get_rect(
+                center=(
+                (self.x - cam_x) // FIELD_TO_SCREEN_SCALE + SCREEN_WIDTH // 2 - POOP_SIZE // 2,
+                -(self.y - cam_y) // FIELD_TO_SCREEN_SCALE + SCREEN_HEIGHT // 2 - POOP_SIZE // 2)
+            )
+
+        # Note: Balls do not change aspect, so this works
+        self.rect.x = (self.x - cam_x) // FIELD_TO_SCREEN_SCALE + SCREEN_WIDTH // 2 - POOP_SIZE // 2  # Move sideways
+        self.rect.y = -(self.y - cam_y) // FIELD_TO_SCREEN_SCALE + SCREEN_HEIGHT // 2 - POOP_SIZE // 2 # Move upward
 
 class Player(pygame.sprite.Sprite):
     ''' Represents the player character, which is a cannon that can move left and right and fire poops.
@@ -83,12 +84,9 @@ class Player(pygame.sprite.Sprite):
         self.angle = 0
         self.x = 600
         self.y = 600
-        self.image = pygame.transform.rotate(self.original_image, -self.angle)
-        # TODO: Currently this assumes camera is right over robot - should set initial view properly
-        self.rect = self.image.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
         self.ticks = pygame.time.get_ticks()
 
-    def update(self, cam_x, cam_y):
+    def update(self):
         if (self.rect is None): return
         keys = pygame.key.get_pressed()
         if keys[pygame.K_LEFT]: self.angle -= 2
@@ -106,18 +104,19 @@ class Player(pygame.sprite.Sprite):
         if self.y < 300: self.y = 300
         if self.y > FIELD_HEIGHT - 300: self.y = FIELD_HEIGHT - 300
 
+        if keys[pygame.K_SPACE]:
+            # Slow down bullet firing for more fun
+            if pygame.time.get_ticks() - self.ticks > 5 * GAME_SPEED_TICKS:
+                self.ticks = pygame.time.get_ticks()
+                Poop(self.x, self.y, self.angle).add(poops)
+
+    def view(self, cam_x, cam_y):
         self.image = pygame.transform.rotate(self.original_image, -self.angle)
         # Note: robot aspect changes with rotation, so we need to update the rect every time
         self.rect = self.image.get_rect(center=(
              (self.x - cam_x) // FIELD_TO_SCREEN_SCALE + SCREEN_WIDTH // 2,
             -(self.y - cam_y) // FIELD_TO_SCREEN_SCALE + SCREEN_HEIGHT // 2)
         )
-
-        if keys[pygame.K_SPACE]:
-            # Slow down bullet firing for more fun
-            if pygame.time.get_ticks() - self.ticks > 5 * GAME_SPEED_TICKS:
-                self.ticks = pygame.time.get_ticks()
-                Poop(self.x, self.y, cam_x, cam_y, self.angle).add(poops)
     
     def hit(self):
         ''' This method is called by in the event loop when the player gets hit by an enemy.
@@ -137,39 +136,69 @@ class Enemy(pygame.sprite.Sprite):
     programming (OOP).  This pattern can also significantly simplify our code and make things much more
     intuitive.
     '''
-    def __init__(self, x, y, cam_x, cam_y, angle):
+    def __init__(self, x, y, angle):
         super().__init__()
         self.image = pygame.image.load('assets/octo_red.png').convert_alpha()
         self.image = pygame.transform.scale(self.image, (CHARACTER_SIZE, CHARACTER_SIZE))
         self.x = x
         self.y = y
-        self.rect = self.image.get_rect(
-            center=(
-                (self.x - cam_x) // FIELD_TO_SCREEN_SCALE + SCREEN_WIDTH // 2 - CHARACTER_SIZE // 2,
-                -(self.y - cam_y) // FIELD_TO_SCREEN_SCALE + SCREEN_HEIGHT // 2 - CHARACTER_SIZE // 2)
-            )
         self.angle = angle
         self.is_hit = False
 
-    def update(self, cam_x, cam_y):
-        if self.rect is None: return
-
+    def update(self):
         self.x += 10 * sin(radians(self.angle)) # Move sideways
         self.y += 10 * cos(radians(self.angle)) # Move upward
-
-        # Aspect fixed
-        self.rect.x = (self.x - cam_x) // FIELD_TO_SCREEN_SCALE + SCREEN_WIDTH // 2 - CHARACTER_SIZE // 2  # Move sideways
-        self.rect.y = -(self.y - cam_y) // FIELD_TO_SCREEN_SCALE + SCREEN_HEIGHT // 2 - CHARACTER_SIZE // 2 # Move upward
 
         if self.x < 0: self.kill() # Remove if off-field
         if self.x > FIELD_WIDTH: self.kill() # Remove if off-field
         if self.y < 0: self.kill() # Remove if off-field
         if self.y > FIELD_HEIGHT: self.kill() # Remove if off-field
 
+    def view(self, cam_x, cam_y):
+        '''
+        Update view rect based on camera position
+        '''
+        if self.rect is None:
+            if self.image is None: return
+            self.rect = self.image.get_rect(
+                center=(
+                    (self.x - cam_x) // FIELD_TO_SCREEN_SCALE + SCREEN_WIDTH // 2 - CHARACTER_SIZE // 2,
+                    -(self.y - cam_y) // FIELD_TO_SCREEN_SCALE + SCREEN_HEIGHT // 2 - CHARACTER_SIZE // 2)
+                )
+
+        # Aspect fixed - just modify existing rect
+        self.rect.x = (self.x - cam_x) // FIELD_TO_SCREEN_SCALE + SCREEN_WIDTH // 2 - CHARACTER_SIZE // 2  # Move sideways
+        self.rect.y = -(self.y - cam_y) // FIELD_TO_SCREEN_SCALE + SCREEN_HEIGHT // 2 - CHARACTER_SIZE // 2 # Move upward
+
     def hit(self):
         sound = pygame.mixer.Sound('assets/ough-hit.ogg')
         sound.play()
 
+class Camera:
+    '''
+    Simple camera logic to follow player around the field. By default the camera is centered on the player, but will stop
+    following when the player is close to the edge of the field to prevent showing empty borders.
+    '''
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.update(x, y)
+
+    def update(self, x, y):
+        self.x = x
+        self.y = y
+        if self.x < 1200: self.x = 1200
+        elif self.x > FIELD_WIDTH - 1200: self.x = FIELD_WIDTH - 1200
+        if self.y < 900: self.y = 900
+        elif self.y > FIELD_HEIGHT - 900: self.y = FIELD_HEIGHT - 900
+
+    @property
+    def X(self):
+        return self.x
+    
+    @property
+    def Y(self):
+        return self.y
 
 # The main game loop, which is the heart of our game. This is where we will handle events,
 # update the game state, and render everything on the screen. The async is only needed
@@ -179,7 +208,9 @@ async def main():
     player = Player()
     # Add the player to a group b/c pygame.sprite.groupcollide only works with groups.
     players.add(player)
-    camera = [player.x, player.y]
+    camera = Camera(player.x, player.y)
+    # Set initial view so collision detection works on first frame
+    player.view(camera.X, camera.Y)
 
     # Technically we don't need running now and just use break.
     # Please feel free to add other features to utitlize the running
@@ -190,23 +221,6 @@ async def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-
-        # Simple camera logic - follow player unless close to edge of field to limit border fill
-        # TODO: Camera should be updated after player update - right now there is a small "reset" only noticeable when robot stops
-        camera[0] = player.x
-        camera[1] = player.y
-        if camera[0] < 1200: camera[0] = 1200
-        elif camera[0] > FIELD_WIDTH - 1200: camera[0] = FIELD_WIDTH - 1200
-        if camera[1] < 900: camera[1] = 900
-        elif camera[1] > FIELD_HEIGHT - 900: camera[1] = FIELD_HEIGHT - 900
-
-        # random.random() generates a random number between 0 and 1, so this means
-        # we have a 20% chance to spawn an enemy every frame.
-        # The enimies can also be added in its own thread and loop. Feel free to try that!
-        if random.random() >= 0.99:
-            # Spawn an enemy at a random angle from center goals
-            k = Enemy(1800, 1800, camera[0], camera[1], 45 + 90 * int(4 * random.random()))
-            enemies.add(k)
 
         # Check to see if anyone dies
         player_hits = pygame.sprite.groupcollide(players, enemies, True, True)
@@ -225,23 +239,45 @@ async def main():
             enemy.hit()
 
         # Update
-        players.update(camera[0], camera[1])
-        poops.update(camera[0], camera[1])
-        enemies.update(camera[0], camera[1])
+        players.update()
+        poops.update()
+        enemies.update()
+
+        # random.random() generates a random number between 0 and 1, so this means
+        # we have a 20% chance to spawn an enemy every frame.
+        # The enimies can also be added in its own thread and loop. Feel free to try that!
+        if random.random() >= 0.99:
+            # Spawn an enemy at a random angle from center goals
+            k = Enemy(1800, 1800, 45 + 90 * int(4 * random.random()))
+            enemies.add(k)
+
+        # Update camera based on robot position
+        # Simple camera logic - follow player unless close to edge of field to limit border fill
+        camera.update(player.x, player.y)
+
+        # View
+        for player in players: player.view(camera.X, camera.Y)
+        for poop in poops: poop.view(camera.X, camera.Y)
+        for enemy in enemies: enemy.view(camera.X, camera.Y)
         
         # In each iteration the whole screen is redrawn, including the background and all
         # Sprites on the screen. This is similar to how a movie works, where each frame is
         # a still image, and when you play the movie, it shows the frames in quick succession
         # to create the illusion of motion.
-        position = (camera[0], camera[1])
+
+        # Scroll background
+        position = (camera.X, camera.Y)
         field_top_left = (
             position[0] // FIELD_TO_SCREEN_SCALE - SCREEN_WIDTH // 2,
             BACKGROUND_HEIGHT - position[1] // FIELD_TO_SCREEN_SCALE - SCREEN_HEIGHT // 2)
         screen.fill((0, 0, 0)) # Clear the screen with white before drawing the new frame
         screen.blit(background_image, (0, 0), (field_top_left[0], field_top_left[1], SCREEN_WIDTH, SCREEN_HEIGHT))
+
+        # Draw objects
         players.draw(screen)
         enemies.draw(screen)
         poops.draw(screen)
+
         pygame.display.flip()
         clock.tick(GAME_SPEED_TICKS)
         await asyncio.sleep(0)  # Yields control to the browser if playing inside a browser.
