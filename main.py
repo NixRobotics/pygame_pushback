@@ -3,17 +3,16 @@ from math import sin, cos, radians
 import pygame
 import random
 
-FIELD_TO_SCREEN_SCALE = 2
-FIELD_WIDTH = 3600
-FIELD_HEIGHT = 3600
+FIELD_TO_SCREEN_SCALE = 2 # zoom level - how many mm in the field corresponds to one pixel on the screen
+FIELD_WIDTH = 3600 # mm
+FIELD_HEIGHT = 3600 # mm
 BACKGROUND_WIDTH = FIELD_WIDTH // FIELD_TO_SCREEN_SCALE
 BACKGROUND_HEIGHT = FIELD_HEIGHT // FIELD_TO_SCREEN_SCALE
-SCREEN_WIDTH = 1280
-SCREEN_HEIGHT = 960
+SCREEN_WIDTH = 1280 # pixels (ish) - will be scaled to fit screen
+SCREEN_HEIGHT = 960 # pixels (ish) - will be scaled to fit screen
 GAME_SPEED_TICKS = 60
-POOP_SIZE = 50
-CHARACTER_SIZE = 50
-ROBOT_SIZE = 200
+BALL_SIZE = 3.25 * 25.4 // FIELD_TO_SCREEN_SCALE # mm -> pixels
+ROBOT_SIZE = 15.0 * 25.4 // FIELD_TO_SCREEN_SCALE # mm -> pixels
 ROBOT_ASPECT =  1.277
 FLAGS = 0 | pygame.SCALED
 
@@ -22,7 +21,7 @@ pygame.mixer.init()
 # The screen where all the graphics will be drawn
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), FLAGS)
 # sets the background of the screen, try updating this for something more beautiful!
-background_image = pygame.image.load('assets/field_top.png')
+background_image = pygame.image.load('assets/pushback_field_noballs.png')
 background_image = pygame.transform.scale(background_image, (BACKGROUND_WIDTH, BACKGROUND_HEIGHT)).convert()
 
 players = pygame.sprite.Group()
@@ -30,20 +29,19 @@ enemies = pygame.sprite.Group()
 poops = pygame.sprite.Group()
 clock = pygame.time.Clock()
 
-
 class Poop(pygame.sprite.Sprite):
     ''' Represents the poop projectiles fired by the player.'''
     def __init__(self, x, y, angle):
         super().__init__()
         self.image = pygame.image.load('assets/octo_blue.png').convert_alpha()
-        self.image = pygame.transform.scale(self.image, (POOP_SIZE, POOP_SIZE))
+        self.image = pygame.transform.scale(self.image, (BALL_SIZE, BALL_SIZE))
         self.x = x
         self.y = y
         self.angle = angle
 
     def update(self):
         '''This method is called by the event loop below, driven by the loop in main().
-        This is called ever frame. Read the pyGame documentation for more details on a frame.
+        This is called ever frame  . Read the pyGame documentation for more details on a frame.
         TL;DR: A frame is one iteration of the game loop, which is typically 1/60th of a second.
         Our job here to update the poop's position, orientation, color, live-or-death
         etc properties as needed.
@@ -57,17 +55,16 @@ class Poop(pygame.sprite.Sprite):
         if self.y > FIELD_HEIGHT: self.kill() # Remove if off-screen
 
     def view(self, cam_x, cam_y):
+        center_x = (self.x - cam_x) // FIELD_TO_SCREEN_SCALE + SCREEN_WIDTH // 2 - BALL_SIZE // 2
+        center_y = -(self.y - cam_y) // FIELD_TO_SCREEN_SCALE + SCREEN_HEIGHT // 2 - BALL_SIZE // 2
+
         if self.rect is None:
             if self.image is None: return
-            self.rect = self.image.get_rect(
-                center=(
-                (self.x - cam_x) // FIELD_TO_SCREEN_SCALE + SCREEN_WIDTH // 2 - POOP_SIZE // 2,
-                -(self.y - cam_y) // FIELD_TO_SCREEN_SCALE + SCREEN_HEIGHT // 2 - POOP_SIZE // 2)
-            )
+            self.rect = self.image.get_rect(center=(center_x, center_y))
 
         # Note: Balls do not change aspect, so this works
-        self.rect.x = (self.x - cam_x) // FIELD_TO_SCREEN_SCALE + SCREEN_WIDTH // 2 - POOP_SIZE // 2  # Move sideways
-        self.rect.y = -(self.y - cam_y) // FIELD_TO_SCREEN_SCALE + SCREEN_HEIGHT // 2 - POOP_SIZE // 2 # Move upward
+        self.rect.x = center_x
+        self.rect.y = center_y
 
 class Player(pygame.sprite.Sprite):
     ''' Represents the player character, which is a cannon that can move left and right and fire poops.
@@ -139,7 +136,7 @@ class Enemy(pygame.sprite.Sprite):
     def __init__(self, x, y, angle):
         super().__init__()
         self.image = pygame.image.load('assets/octo_red.png').convert_alpha()
-        self.image = pygame.transform.scale(self.image, (CHARACTER_SIZE, CHARACTER_SIZE))
+        self.image = pygame.transform.scale(self.image, (BALL_SIZE, BALL_SIZE))
         self.x = x
         self.y = y
         self.angle = angle
@@ -158,17 +155,18 @@ class Enemy(pygame.sprite.Sprite):
         '''
         Update view rect based on camera position
         '''
+        # Figure out where the center of the ball should be on the screen based on its position in the field and the camera position
+        center_x = (self.x - cam_x) // FIELD_TO_SCREEN_SCALE + SCREEN_WIDTH // 2 - BALL_SIZE // 2
+        center_y = -(self.y - cam_y) // FIELD_TO_SCREEN_SCALE + SCREEN_HEIGHT // 2 - BALL_SIZE // 2
+
+        # Create rect if it doesn't already exist
         if self.rect is None:
             if self.image is None: return
-            self.rect = self.image.get_rect(
-                center=(
-                    (self.x - cam_x) // FIELD_TO_SCREEN_SCALE + SCREEN_WIDTH // 2 - CHARACTER_SIZE // 2,
-                    -(self.y - cam_y) // FIELD_TO_SCREEN_SCALE + SCREEN_HEIGHT // 2 - CHARACTER_SIZE // 2)
-                )
+            self.rect = self.image.get_rect(center=(center_x, center_y))
 
         # Aspect fixed - just modify existing rect
-        self.rect.x = (self.x - cam_x) // FIELD_TO_SCREEN_SCALE + SCREEN_WIDTH // 2 - CHARACTER_SIZE // 2  # Move sideways
-        self.rect.y = -(self.y - cam_y) // FIELD_TO_SCREEN_SCALE + SCREEN_HEIGHT // 2 - CHARACTER_SIZE // 2 # Move upward
+        self.rect.x = center_x
+        self.rect.y = center_y
 
     def hit(self):
         sound = pygame.mixer.Sound('assets/ough-hit.ogg')
@@ -238,7 +236,7 @@ async def main():
         for enemy in enemy_hits.keys():
             enemy.hit()
 
-        # Update
+        # Motion update
         players.update()
         poops.update()
         enemies.update()
@@ -255,7 +253,9 @@ async def main():
         # Simple camera logic - follow player unless close to edge of field to limit border fill
         camera.update(player.x, player.y)
 
-        # View
+        # View update - update the rect of each sprite based on the camera position. This is necessary because the camera is moving,
+        # so we need to update the position of each sprite on the screen accordingly. The view() method of each sprite takes care of
+        # this logic, so we just need to call it for each sprite in the game.
         for player in players: player.view(camera.X, camera.Y)
         for poop in poops: poop.view(camera.X, camera.Y)
         for enemy in enemies: enemy.view(camera.X, camera.Y)
@@ -265,7 +265,7 @@ async def main():
         # a still image, and when you play the movie, it shows the frames in quick succession
         # to create the illusion of motion.
 
-        # Scroll background
+        # Scroll background based on camera position - note Y is inverted as 0,0 is top left corner in pygame
         position = (camera.X, camera.Y)
         field_top_left = (
             position[0] // FIELD_TO_SCREEN_SCALE - SCREEN_WIDTH // 2,
